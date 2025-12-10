@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..database import get_db
-from ..models import Course, Video, VideoProgress, Question, Answer
+from ..models import Course, Video, VideoProgress, Question, Answer, Transcript
 from ..services.youtube import get_playlist_info, get_video_transcript
 from ..services.ai_tutor import generate_questions, evaluate_answer
 from pydantic import BaseModel
@@ -154,11 +154,30 @@ def get_quiz(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Video not found")
     
     if not video.questions:
-        # Generate On-the-fly
-        transcript_list = get_video_transcript(video.youtube_id)
-        full_text = " ".join([t['text'] for t in transcript_list])
+        # Check if we have transcripts in DB
+        transcripts_db = db.query(Transcript).filter(Transcript.video_id == video.id).all()
         
-        if not full_text:
+        if not transcripts_db:
+            # Fetch from YouTube
+            transcript_list = get_video_transcript(video.youtube_id)
+            if transcript_list:
+                # Save to DB
+                for t in transcript_list:
+                    new_t = Transcript(
+                        video_id=video.id,
+                        text=t['text'],
+                        start_time=t['start'],
+                        duration=t['duration']
+                    )
+                    db.add(new_t)
+                db.commit()
+                # Re-fetch from DB to be clean
+                transcripts_db = db.query(Transcript).filter(Transcript.video_id == video.id).all()
+        
+        # Prepare text for AI
+        if transcripts_db:
+             full_text = " ".join([t.text for t in transcripts_db])
+        else:
              full_text = f"Title: {video.title}. Use this title as context."
 
         generated = generate_questions(full_text)

@@ -20,9 +20,21 @@ db = next(get_db())
 # Title
 st.title("📚 Learning System DB Explorer")
 
+import os
+from dotenv import load_dotenv
+
+# Load env variables for local check
+env_path = os.path.join(os.path.dirname(__file__), 'backend', '.env')
+load_dotenv(env_path)
+
 # Sidebar
 st.sidebar.header("Navigation")
-view_option = st.sidebar.radio("View", ["Courses & Progress", "All Videos", "Q&A Analysis"])
+
+options = ["Courses & Progress", "All Videos", "Q&A Analysis"]
+if os.getenv("sql_host") or os.getenv("REMOTE_DB_URL"):
+    options.append("Cloud Sync")
+
+view_option = st.sidebar.radio("View", options)
 
 if view_option == "Courses & Progress":
     st.header("Courses Overview")
@@ -51,7 +63,7 @@ if view_option == "Courses & Progress":
                 "Playlist ID": c.playlist_id
             })
         
-        st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(data), hide_index=True, width='stretch')
 
         st.divider()
         st.subheader("Deep Dive: Select a Course")
@@ -92,7 +104,7 @@ elif view_option == "All Videos":
         "Title": v.title, 
         "YouTube ID": v.youtube_id
     } for v in videos])
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width='stretch')
 
 elif view_option == "Q&A Analysis":
     st.header("Exam Results & Answers")
@@ -128,4 +140,71 @@ elif view_option == "Q&A Analysis":
                 "Feedback": a.feedback
             })
         
-        st.dataframe(pd.DataFrame(a_data), use_container_width=True)
+        st.dataframe(pd.DataFrame(a_data), width='stretch')
+
+elif view_option == "Cloud Sync":
+    st.header("☁️ Cloud Database Sync")
+
+    # Fetch status from API
+    import requests
+    try:
+        res = requests.get("http://127.0.0.1:8000/api/sync/status")
+        if res.status_code == 200:
+            status = res.json()
+            
+            # Metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Remote DB", "Configured" if status['remote_configured'] else "Not Configured")
+            with col2:
+                last_sync = status['last_sync'] or "Never"
+                st.metric("Last Sync", last_sync)
+            with col3:
+                st.metric("Can Sync Now?", "Yes" if status['can_sync'] else "No")
+
+            if not status['can_sync'] and status['message']:
+                st.warning(f"Wait Condition: {status['message']}")
+            
+            st.divider()
+            
+            # Trigger
+            if st.button("🔄 Sync Now (Force)", type="primary"):
+                with st.spinner("Syncing data to Remote DB..."):
+                    try:
+                        sync_res = requests.post("http://127.0.0.1:8000/api/sync/trigger?force=true")
+                        if sync_res.status_code == 200:
+                            result = sync_res.json()
+                            if result['status'] == 'success':
+                                st.success("Sync Successful!")
+                                st.json(result['details'])
+                            else:
+                                st.error(f"Sync Skipped: {result.get('message')}")
+                        else:
+                            st.error(f"Error: {sync_res.text}")
+                    except Exception as e:
+                        st.error(f"Request failed: {e}")
+            
+            st.write("") # Spacer
+            if st.button("⚠️ Reset Remote DB & Sync", type="secondary"):
+                st.warning("This will DELETE ALL DATA on the remote database and re-sync from local.")
+                if st.button("Confirm Reset & Sync"):
+                    with st.spinner("Resetting Remote DB and Syncing..."):
+                        try:
+                            sync_res = requests.post("http://127.0.0.1:8000/api/sync/trigger?force=true&reset=true")
+                            if sync_res.status_code == 200:
+                                result = sync_res.json()
+                                if result['status'] == 'success':
+                                    st.success("Reset & Sync Successful!")
+                                    st.json(result['details'])
+                                else:
+                                    st.error(f"Sync Skipped: {result.get('message')}")
+                            else:
+                                st.error(f"Error: {sync_res.text}")
+                        except Exception as e:
+                            st.error(f"Request failed: {e}")
+
+        else:
+            st.error("Could not fetch sync status from backend.")
+            
+    except Exception as e:
+        st.error(f"Backend unreachable: {e}. Is uvicorn running?")

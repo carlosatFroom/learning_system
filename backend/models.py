@@ -7,9 +7,9 @@ class Course(Base):
     __tablename__ = "courses"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
+    title = Column(String(255), index=True)
     description = Column(Text, nullable=True)
-    playlist_id = Column(String, unique=True, index=True)
+    playlist_id = Column(String(255), unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     videos = relationship("Video", back_populates="course")
@@ -19,8 +19,8 @@ class Video(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     course_id = Column(Integer, ForeignKey("courses.id"))
-    youtube_id = Column(String, index=True)
-    title = Column(String)
+    youtube_id = Column(String(255), index=True)
+    title = Column(String(255))
     order = Column(Integer)
     duration = Column(Integer) # In seconds
 
@@ -46,7 +46,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     video_id = Column(Integer, ForeignKey("videos.id"))
     text = Column(Text)
-    kind = Column(String) # 'text', 'multiple_choice', 'image_upload'
+    kind = Column(String(50)) # 'text', 'multiple_choice', 'image_upload'
     correct_answer_summary = Column(Text, nullable=True)
     timestamp_reference = Column(Float, nullable=True)
     follow_up_to_id = Column(Integer, nullable=True) # ID of question this follows up on
@@ -72,7 +72,7 @@ class VideoProgress(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     video_id = Column(Integer, ForeignKey("videos.id"))
-    user_id = Column(String, default="user") # Placeholder for single user
+    user_id = Column(String(255), default="user") # Placeholder for single user
     completed = Column(Boolean, default=False)
     score = Column(Integer, default=0)
     last_watched_timestamp = Column(Float, default=0.0)

@@ -58,15 +58,31 @@ touch backend/.env
 # Windows
 echo. > backend/.env
 ```
-Add your API key to it:
-```
+Add your keys and database config:
+```ini
 GROQ_API_KEY=your_actual_api_key_here
+
+# Optional: Remote SQL Database for Sync (MariaDB/MySQL)
+sql_user=myuser
+sql_pwd=mypassword
+sql_host=myserver.com
+sql_db=learning_system
 ```
 
 ## Usage
 
 ### 1. Start the Backend Server
 This runs the core application (Player, API, Database).
+...
+### 2. Start the Admin Dashboard (Optional)
+Use this to explore the database, view exam grades, and manage Cloud Sync.
+...
+
+## Key Features
+*   **Video Gating:** Inspects `VideoProgress` to unlock content sequentially.
+*   **Exam Mode:** 3-question exams generated from transcripts. Passing (>70%) unlocks the next video.
+*   **Transcript Storage:** Transcripts are fetched, saved locally, and used for quiz generation.
+*   **Cloud Sync:** Backs up your local SQLite data to a remote SQL server (with `learning_system_` namespacing). Includes a "Reset Remote" feature to handle schema mismatches.
 
 **Mac / Linux:**
 ```bash
