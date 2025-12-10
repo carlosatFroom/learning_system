@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}{{ video.title }} - Learning System{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+
+    <!-- Main Player Area -->
+    <div class="lg:col-span-2 flex flex-col gap-4">
+        <div
+            class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-700 group">
+            <div id="player" class="w-full h-full"></div>
+
+            <!-- Exam Overlay -->
+            <div id="quiz-overlay"
+                class="hidden absolute inset-0 bg-slate-900/95 z-10 flex flex-col p-8 backdrop-blur-sm overflow-y-auto">
+                <div class="max-w-3xl mx-auto w-full flex-1 flex flex-col pt-10">
+                    <h2 class="text-3xl font-bold text-white mb-2">Knowledge Check</h2>
+                    <p class="text-slate-400 mb-6">Choose any <strong>2 questions</strong> to answer. Start your answer
+                        with the question number (e.g., "1. My answer is...").</p>
+
+                    <div id="quiz-content" class="flex flex-col gap-6">
+                        <!-- Questions List -->
+                        <div id="questions-list"
+                            class="space-y-4 bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+                            <!-- Injected via JS -->
+                            <div class="animate-pulse text-slate-500">Loading questions...</div>
+                        </div>
+
+                        <!-- Answer Area -->
+                        <div class="space-y-4">
+                            <textarea id="answer-text"
+                                class="w-full h-40 bg-slate-800 text-white p-4 rounded-lg border border-slate-600 focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                placeholder="1. [Your Answer]&#10;2. [Your Answer]"></textarea>
+
+                            <div class="flex gap-4">
+                                <button id="record-btn"
+                                    class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors border border-slate-600">
+                                    <i data-lucide="mic" class="w-5 h-5"></i>
+                                    <span id="record-status">Record Audio Answer</span>
+                                </button>
+                                <button id="submit-btn"
+                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-900/20">
+                                    Submit Exam
+                                </button>
+                            </div>
+
+                            <!-- Feedback Section -->
+                            <div id="feedback-area"
+                                class="hidden p-6 rounded-lg bg-slate-800 border border-slate-700 text-left">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-xl font-bold text-white">Assessment Result</h4>
+                                    <div class="text-2xl font-bold" id="score-display">--/100</div>
+                                </div>
+
+                                <div class="prose prose-invert max-w-none text-slate-300 text-sm mb-6"
+                                    id="feedback-text"></div>
+
+                                <button id="next-action-btn"
+                                    class="w-full py-3 rounded-lg font-bold transition-colors hidden">
+                                    <!-- Dynamic Text -->
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h1 class="text-2xl font-bold text-white">{{ video.title }}</h1>
+            <p class="text-slate-400 mt-1">Course: <a href="/course/{{ course.id }}"
+                    class="text-blue-400 hover:underline">{{ course.title }}</a></p>
+        </div>
+    </div>
+
+    <!-- Sidebar Playlist -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-slate-700 bg-slate-800 z-10">
+            <h3 class="font-semibold text-slate-200">Course Content</h3>
+            <div class="w-full bg-slate-700 h-1 mt-3 rounded-full overflow-hidden">
+                <div class="bg-blue-500 h-full" style="width: {{ course.progress_percent }}%"></div>
+            </div>
+        </div>
+
+        <div class="overflow-y-auto flex-1 p-2 space-y-1">
+            {% for v in course.videos %}
+            {% if v.locked and not v.completed %}
+            <div class="flex items-center gap-3 p-3 rounded-lg opacity-50 cursor-not-allowed bg-slate-800/50">
+                <div
+                    class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700 text-slate-500">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-500">{{ v.title }}</p>
+                    <span class="text-xs text-slate-600">Locked</span>
+                </div>
+            </div>
+            {% else %}
+            <a href="/course/{{ course.id }}?video_id={{ v.id }}"
+                class="flex items-center gap-3 p-3 rounded-lg transition-colors {% if v.id == video.id %}bg-blue-600/20 border border-blue-500/50{% else %}hover:bg-slate-700{% endif %}">
+                <div
+                    class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center {% if v.completed %}bg-green-500/20 text-green-400{% elif v.id == video.id %}bg-blue-500 text-white{% else %}bg-slate-700 text-slate-400{% endif %}">
+                    {% if v.completed %}
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    {% else %}
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    {% endif %}
+                </div>
+                <div class="min-w-0">
+                    <p
+                        class="text-sm font-medium truncate {% if v.id == video.id %}text-blue-200{% else %}text-slate-300{% endif %}">
+                        {{ v.title }}
+                    </p>
+                    <span class="text-xs text-slate-500">{{ (v.duration / 60)|round|int }} mins</span>
+                </div>
+            </a>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // YouTube Setup
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    var player;
+    var currentVideoId = "{{ video.id }}";
+    var courseId = "{{ course.id }}";
+    var startTime = {{ video.last_watched_timestamp or 0 }};
+
+    // Exam State
+    let audioBlob = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            videoId: '{{ video.youtube_id }}',
+            playerVars: { 'playsinline': 1, 'start': Math.floor(startTime) },
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerReady(event) {
+        setInterval(saveProgress, 5000);
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data == YT.PlayerState.ENDED) {
+            saveProgress(false); // Don't mark complete just by watching. Must pass exam.
+            startExam();
+        }
+    }
+
+    async function saveProgress(completed = false) {
+        if (!player || !player.getCurrentTime) return;
+        try {
+            await fetch(`/api/progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_id: parseInt(currentVideoId),
+                    course_id: parseInt(courseId),
+                    timestamp: player.getCurrentTime(),
+                    completed: completed
+                })
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    // --- Exam Logic ---
+
+    async function startExam() {
+        document.getElementById('quiz-overlay').classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/api/videos/${currentVideoId}/quiz`);
+            const data = await res.json();
+
+            const list = document.getElementById('questions-list');
+            list.innerHTML = ""; // Clear loader
+
+            data.questions.forEach((q, idx) => {
+                const item = document.createElement('div');
+                item.className = "flex gap-3 text-slate-200";
+                item.innerHTML = `
+                    <span class="font-bold text-blue-400">${idx + 1}.</span>
+                    <p>${q.text}</p>
+                `;
+                list.appendChild(item);
+            });
+
+        } catch (e) {
+            document.getElementById('questions-list').innerText = "Error loading questions. Please reload.";
+        }
+    }
+
+    // Audio Recording
+    document.getElementById('record-btn').addEventListener('click', async () => {
+        if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/m4a' });
+                    document.getElementById('record-status').innerText = "Recorded!";
+                };
+
+                mediaRecorder.start();
+                document.getElementById('record-status').innerText = "Stop Recording";
+                document.getElementById('record-btn').classList.add('bg-red-600', 'border-red-500');
+            } catch (e) {
+                alert("Microphone access denied");
+            }
+        } else {
+            mediaRecorder.stop();
+            document.getElementById('record-btn').classList.remove('bg-red-600', 'border-red-500');
+        }
+    });
+
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+        const text = document.getElementById('answer-text').value;
+        if (!text && !audioBlob) return alert("Please answer first (Type or Record)");
+
+        const formData = new FormData();
+        formData.append('video_id', currentVideoId);
+        if (text) formData.append('answer_text', text);
+        if (audioBlob) formData.append('audio_file', audioBlob, 'answer.m4a');
+
+        const btn = document.getElementById('submit-btn');
+        btn.innerText = "Grading Exam...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/submit_exam', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            // Show Feedback
+            document.getElementById('feedback-area').classList.remove('hidden');
+            document.getElementById('feedback-text').innerText = data.feedback;
+
+            const scoreEl = document.getElementById('score-display');
+            scoreEl.innerText = data.overall_score + "/100";
+            scoreEl.className = data.passed ? "text-2xl font-bold text-green-400" : "text-2xl font-bold text-red-400";
+
+            btn.classList.add('hidden'); // Hide submit
+
+            const nextBtn = document.getElementById('next-action-btn');
+            nextBtn.classList.remove('hidden');
+
+            if (data.passed) {
+                if (data.next_video_id) {
+                    nextBtn.innerText = "Go to Next Video →";
+                    nextBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
+                    nextBtn.onclick = () => window.location.href = `?video_id=${data.next_video_id}`;
+                } else {
+                    nextBtn.innerText = "Course Completed! Back to Dashboard";
+                    nextBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
+                    nextBtn.onclick = () => window.location.href = `/`;
+                }
+            } else {
+                nextBtn.innerText = "Retake Exam";
+                nextBtn.classList.add('bg-slate-700', 'hover:bg-slate-600', 'text-white');
+                nextBtn.onclick = () => {
+                    // Reset UI for retry
+                    document.getElementById('feedback-area').classList.add('hidden');
+                    btn.classList.remove('hidden');
+                    btn.innerText = "Submit Exam";
+                    btn.disabled = false;
+                };
+            }
+
+        } catch (e) {
+            alert("Error submitting exam");
+            btn.innerText = "Submit Exam";
+            btn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}
