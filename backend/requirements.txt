@@ -3,6 +3,8 @@ uvicorn
 sqlalchemy
 pydantic
 python-multipart
+streamlit
+pandas
 requests
 youtube-transcript-api
 groq
