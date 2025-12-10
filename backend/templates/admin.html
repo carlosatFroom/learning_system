@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Import Course{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-10">
+    <div class="bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-xl">
+        <h1 class="text-3xl font-bold text-white mb-6">Playlist Admin</h1>
+        <p class="text-slate-400 mb-8">Import a new course by pasting a YouTube Playlist URL below. The system will
+            fetch all videos, metadata, and set up the course structure.</p>
+
+        <form action="/ingest" method="post" class="space-y-6">
+            <div>
+                <label for="playlist_url" class="block text-sm font-medium text-slate-300 mb-2">YouTube Playlist
+                    URL</label>
+                <input type="url" name="playlist_url" id="playlist_url" required
+                    class="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-500"
+                    placeholder="https://www.youtube.com/playlist?list=PL...">
+            </div>
+
+            <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <i data-lucide="download-cloud" class="w-5 h-5"></i>
+                Import Course
+            </button>
+        </form>
+
+        <div class="mt-12">
+            <h2 class="text-xl font-bold text-white mb-4">Manage Existing Courses</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-700 uppercase font-medium text-slate-400">
+                        <tr>
+                            <th class="px-4 py-3 rounded-tl-lg">ID</th>
+                            <th class="px-4 py-3">Title</th>
+                            <th class="px-4 py-3">Videos</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 rounded-tr-lg">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700 bg-slate-800">
+                        {% for c in courses %}
+                        <tr class="hover:bg-slate-700/50 transition-colors">
+                            <td class="px-4 py-3">{{ c.id }}</td>
+                            <td class="px-4 py-3 font-medium text-white">{{ c.title }}</td>
+                            <td class="px-4 py-3">{{ c.videos|length }}</td>
+                            <td class="px-4 py-3">
+                                {% if c.is_hidden %}
+                                <span
+                                    class="px-2 py-1 rounded bg-red-900/50 text-red-200 text-xs border border-red-800">Hidden</span>
+                                {% else %}
+                                <span
+                                    class="px-2 py-1 rounded bg-green-900/50 text-green-200 text-xs border border-green-800">Visible</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <form action="/admin/toggle_course/{{ c.id }}" method="post" class="inline">
+                                    <input type="hidden" name="hide" value="{{ 'false' if c.is_hidden else 'true' }}">
+                                    <button type="submit"
+                                        class="px-3 py-1 rounded text-xs font-bold transition-colors {% if c.is_hidden %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-red-600 hover:bg-red-700 text-white{% endif %}">
+                                        {{ 'Show' if c.is_hidden else 'Hide' }}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not courses %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-500 italic">No courses found.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-8 border-t border-slate-700">
+            <h3 class="text-lg font-semibold text-white mb-4">Tips</h3>
+            <ul class="list-disc list-inside text-slate-400 space-y-2 text-sm">
+                <li>Make sure the playlist is <strong>Public</strong> or <strong>Unlisted</strong>.</li>
+                <li>The import process fetches video titles, durations, and IDs.</li>
+                <li>Transcripts are fetched on-demand when you first open the video.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

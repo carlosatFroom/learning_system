@@ -10,6 +10,7 @@ class Course(Base):
     title = Column(String(255), index=True)
     description = Column(Text, nullable=True)
     playlist_id = Column(String(255), unique=True, index=True)
+    is_hidden = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     videos = relationship("Video", back_populates="course")

@@ -174,12 +174,28 @@ class SyncService:
 
         if reset:
             try:
-                self.remote_metadata.drop_all(bind=self.remote_engine)
+                with self.remote_engine.connect() as conn:
+                    # Disable FK checks on THIS connection
+                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+                    
+                    # Drop all using THIS connection
+                    self.remote_metadata.drop_all(bind=conn)
+                    
+                    # Re-create all using THIS connection (immediately after drop)
+                    self.remote_metadata.create_all(bind=conn)
+                    
+                    # Re-enable FK checks
+                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+                    conn.commit()
+                    print("Reset: Remote DB wiped and re-created successfully.")
             except Exception as e:
-                print(f"Warning dropping tables: {e}")
+                print(f"Error during reset: {e}")
+                # We should probably fail here if reset was requested but failed
+                return {"status": "error", "message": f"Reset failed: {str(e)}"}
 
-        # Create Tables with PREFIX
-        self.remote_metadata.create_all(bind=self.remote_engine)
+        # Ensure Remote Schema Exists (if not reset, we still check)
+        if not reset:
+             self.remote_metadata.create_all(bind=self.remote_engine)
         
         local_db = SessionLocal()
         results = {}

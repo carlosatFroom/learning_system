@@ -22,7 +22,8 @@ class ProgressUpdate(BaseModel):
 
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
-    courses = db.query(Course).all()
+    # Only show non-hidden courses
+    courses = db.query(Course).filter(Course.is_hidden == False).all()
     # Enrich with progress
     course_data = []
     for c in courses:
@@ -65,6 +66,19 @@ def ingest_course(playlist_url: str = Form(...), db: Session = Depends(get_db)):
     db.commit()
 
     return RedirectResponse(url=f"/", status_code=303)
+
+@router.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request, db: Session = Depends(get_db)):
+    courses = db.query(Course).all()
+    return templates.TemplateResponse("admin.html", {"request": request, "courses": courses})
+
+@router.post("/admin/toggle_course/{course_id}")
+def toggle_course_visibility(course_id: int, hide: bool = Form(...), db: Session = Depends(get_db)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if course:
+        course.is_hidden = hide
+        db.commit()
+    return RedirectResponse(url="/admin", status_code=303)
 
 @router.get("/course/{course_id}", response_class=HTMLResponse)
 def player(request: Request, course_id: int, video_id: Optional[int] = None, db: Session = Depends(get_db)):

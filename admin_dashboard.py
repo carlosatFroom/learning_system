@@ -38,7 +38,8 @@ view_option = st.sidebar.radio("View", options)
 
 if view_option == "Courses & Progress":
     st.header("Courses Overview")
-    courses = db.query(Course).all()
+    # Only show Visible courses in the main view (as requested)
+    courses = db.query(Course).filter(Course.is_hidden != True).all()
     
     if not courses:
         st.warning("No courses found.")
@@ -141,7 +142,7 @@ elif view_option == "Q&A Analysis":
             })
         
         st.dataframe(pd.DataFrame(a_data), width='stretch')
-
+        
 elif view_option == "Cloud Sync":
     st.header("☁️ Cloud Database Sync")
 
