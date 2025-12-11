@@ -149,11 +149,12 @@
         };
 
         // Add playlist context if available
-        var playlistId = "{{ course.playlist_id }}";
-        if (playlistId && playlistId !== "None" && playlistId !== "") {
-            playerConfig.playerVars['listType'] = 'playlist';
-            playerConfig.playerVars['list'] = playlistId;
-        }
+        // Playlist context removed to prevent embed errors
+        // var playlistId = "{{ course.playlist_id }}";
+        // if (playlistId && playlistId !== "None" && playlistId !== "") {
+        //    playerConfig.playerVars['listType'] = 'playlist';
+        //    playerConfig.playerVars['list'] = playlistId;
+        // }
 
         player = new YT.Player('player', playerConfig);
     }

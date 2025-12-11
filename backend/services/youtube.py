@@ -17,11 +17,19 @@ def get_playlist_info(playlist_url: str) -> Dict:
         if 'entries' in result:
             videos = []
             for entry in result['entries']:
+                vid_id = entry['id']
+                # Extra safety: if ID contains '&', strip it. 
+                # (yt-dlp usually handles this, but some raw entries might not)
+                if '&' in vid_id:
+                    vid_id = vid_id.split('&')[0]
+                if '?' in vid_id:
+                     vid_id = vid_id.split('?')[0]
+
                 videos.append({
-                    'youtube_id': entry['id'],
+                    'youtube_id': vid_id,
                     'title': entry['title'],
                     'duration': entry.get('duration', 0),
-                    'url': entry.get('url', f"https://www.youtube.com/watch?v={entry['id']}")
+                    'url': entry.get('url', f"https://www.youtube.com/watch?v={vid_id}")
                 })
             return {
                 'id': result.get('id'),

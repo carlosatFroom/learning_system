@@ -61,7 +61,11 @@ def ingest_course(playlist_url: str = Form(...), db: Session = Depends(get_db)):
 
     # 4. Videos
     for idx, v in enumerate(info.get('videos', [])):
-        new_vid = Video(course_id=new_course.id, youtube_id=v['youtube_id'], title=v['title'], order=idx, duration=v['duration'])
+        y_id = v['youtube_id']
+        if '&' in y_id: y_id = y_id.split('&')[0]
+        if '?' in y_id: y_id = y_id.split('?')[0]
+
+        new_vid = Video(course_id=new_course.id, youtube_id=y_id, title=v['title'], order=idx, duration=v['duration'])
         db.add(new_vid)
     db.commit()
 
