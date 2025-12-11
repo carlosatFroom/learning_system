@@ -76,7 +76,28 @@ This runs the core application (Player, API, Database).
 ...
 ### 2. Start the Admin Dashboard (Optional)
 Use this to explore the database, view exam grades, and manage Cloud Sync.
-...
+```bash
+# Mac/Linux:
+venv/bin/uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+
+# Windows:
+venv\Scripts\uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+*Note: `--host 0.0.0.0` makes the server accessible from other devices on your network.*
+Open your browser to: **http://127.0.0.1:8000**
+
+### 2. Start the Admin Dashboard (Optional)
+Use this to explore the database contents, view grades, and manage data.
+
+**Mac / Linux:**
+```bash
+venv/bin/streamlit run admin_dashboard.py
+```
+
+**Windows:**
+```bash
+venv\Scripts\streamlit run admin_dashboard.py
+```
 
 ## Key Features
 *   **Video Gating:** Inspects `VideoProgress` to unlock content sequentially.
@@ -84,21 +105,6 @@ Use this to explore the database, view exam grades, and manage Cloud Sync.
 *   **Transcript Storage:** Transcripts are fetched, saved locally, and used for quiz generation.
 *   **Cloud Sync:** Backs up your local SQLite data to a remote SQL server (with `learning_system_` namespacing). Includes a "Reset Remote" feature to handle schema mismatches.
 
-**Mac / Linux:**
-```bash
-venv/bin/uvicorn backend.main:app --reload
-```
-
-**Windows:**
-```bash
-venv\Scripts\uvicorn backend.main:app --reload
-```
-Open your browser to: **http://127.0.0.1:8000**
-
-### 2. Start the Admin Dashboard (Optional)
-Use this to explore the database contents, view grades, and manage data.
-
-**Mac / Linux:**
 ```bash
 venv/bin/streamlit run admin_dashboard.py
 ```

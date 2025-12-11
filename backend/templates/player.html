@@ -139,14 +139,23 @@
     let audioChunks = [];
 
     function onYouTubeIframeAPIReady() {
-        player = new YT.Player('player', {
+        var playerConfig = {
             videoId: '{{ video.youtube_id }}',
             playerVars: { 'playsinline': 1, 'start': Math.floor(startTime) },
             events: {
                 'onReady': onPlayerReady,
                 'onStateChange': onPlayerStateChange
             }
-        });
+        };
+
+        // Add playlist context if available
+        var playlistId = "{{ course.playlist_id }}";
+        if (playlistId && playlistId !== "None" && playlistId !== "") {
+            playerConfig.playerVars['listType'] = 'playlist';
+            playerConfig.playerVars['list'] = playlistId;
+        }
+
+        player = new YT.Player('player', playerConfig);
     }
 
     function onPlayerReady(event) {

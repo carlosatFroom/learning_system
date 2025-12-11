@@ -142,7 +142,13 @@ def player(request: Request, course_id: int, video_id: Optional[int] = None, db:
 
     return templates.TemplateResponse("player.html", {
         "request": request, 
-        "course": {"id": course.id, "title": course.title, "videos": sidebar_videos, "progress_percent": progress_percent},
+        "course": {
+            "id": course.id, 
+            "title": course.title, 
+            "videos": sidebar_videos, 
+            "progress_percent": progress_percent,
+            "playlist_id": course.playlist_id
+        },
         "video": video_data
     })
 
