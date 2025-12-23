@@ -1,0 +1,24 @@
+[Unit]
+Description=Learning System FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/home/carlos/code/learning_system
+Environment="PATH=/home/carlos/code/learning_system/venv/bin"
+ExecStart=/home/carlos/code/learning_system/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/learning-system/access.log
+StandardError=append:/var/log/learning-system/error.log
+
+# Security settings (optional but recommended)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
