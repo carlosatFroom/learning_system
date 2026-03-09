@@ -90,17 +90,32 @@ def player(request: Request, course_id: int, video_id: Optional[int] = None, db:
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
+    sorted_videos = sorted(course.videos, key=lambda x: x.order)
+    progress_rows = db.query(VideoProgress).filter(VideoProgress.video_id.in_([v.id for v in sorted_videos])).all() if sorted_videos else []
+    progress_by_video_id = {p.video_id: p for p in progress_rows}
+
+    def is_unlocked(video: Video) -> bool:
+        # A video is unlocked only if all previous videos are completed.
+        for v in sorted_videos:
+            if v.id == video.id:
+                return True
+            if not (progress_by_video_id.get(v.id) and progress_by_video_id[v.id].completed):
+                return False
+        return True
+
     target_video = None
     if video_id:
         target_video = db.query(Video).filter(Video.id == video_id, Video.course_id == course_id).first()
+        if target_video and not is_unlocked(target_video):
+            target_video = None
     
     if not target_video:
-        target_video = course.videos[0] if course.videos else None
+        target_video = next((v for v in sorted_videos if is_unlocked(v)), sorted_videos[0] if sorted_videos else None)
 
     if not target_video:
         return RedirectResponse(url="/")
 
-    prog = db.query(VideoProgress).filter(VideoProgress.video_id == target_video.id).first()
+    prog = progress_by_video_id.get(target_video.id)
     
     video_data = {
         "id": target_video.id,
@@ -113,18 +128,10 @@ def player(request: Request, course_id: int, video_id: Optional[int] = None, db:
     # Sidebar
     sidebar_videos = []
     completed_count = 0
-    for v in course.videos:
-        p = db.query(VideoProgress).filter(VideoProgress.video_id == v.id).first()
-    # Sidebar
-    sidebar_videos = []
-    completed_count = 0
     previous_completed = True # First video is always unlocked
     
-    # Sort videos by order to ensure locking logic works sequentially
-    sorted_videos = sorted(course.videos, key=lambda x: x.order)
-    
     for v in sorted_videos:
-        p = db.query(VideoProgress).filter(VideoProgress.video_id == v.id).first()
+        p = progress_by_video_id.get(v.id)
         is_completed = p.completed if p else False
         if is_completed: completed_count += 1
         
