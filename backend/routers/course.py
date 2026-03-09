@@ -74,7 +74,18 @@ def ingest_course(playlist_url: str = Form(...), db: Session = Depends(get_db)):
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, db: Session = Depends(get_db)):
     courses = db.query(Course).all()
-    return templates.TemplateResponse("admin.html", {"request": request, "courses": courses})
+    status_code = request.query_params.get("status")
+    status_messages = {
+        "next_video_unlocked": "Unlocked the next video in sequence.",
+        "all_videos_completed": "All videos are already unlocked and completed.",
+        "no_videos": "This course has no videos to unlock.",
+        "course_not_found": "Course not found."
+    }
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "courses": courses,
+        "status_message": status_messages.get(status_code)
+    })
 
 @router.post("/admin/toggle_course/{course_id}")
 def toggle_course_visibility(course_id: int, hide: bool = Form(...), db: Session = Depends(get_db)):
@@ -83,6 +94,44 @@ def toggle_course_visibility(course_id: int, hide: bool = Form(...), db: Session
         course.is_hidden = hide
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
+
+@router.post("/admin/unlock_next_video/{course_id}")
+def unlock_next_video(course_id: int, db: Session = Depends(get_db)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        return RedirectResponse(url="/admin?status=course_not_found", status_code=303)
+
+    sorted_videos = sorted(course.videos, key=lambda v: v.order)
+    if not sorted_videos:
+        return RedirectResponse(url="/admin?status=no_videos", status_code=303)
+
+    video_ids = [video.id for video in sorted_videos]
+    progress_rows = db.query(VideoProgress).filter(
+        VideoProgress.video_id.in_(video_ids),
+        VideoProgress.user_id == "user"
+    ).all()
+    progress_by_video = {row.video_id: row for row in progress_rows}
+
+    first_incomplete_video = None
+    for video in sorted_videos:
+        progress = progress_by_video.get(video.id)
+        if not progress or not progress.completed:
+            first_incomplete_video = video
+            break
+
+    if not first_incomplete_video:
+        return RedirectResponse(url="/admin?status=all_videos_completed", status_code=303)
+
+    progress = progress_by_video.get(first_incomplete_video.id)
+    if not progress:
+        progress = VideoProgress(video_id=first_incomplete_video.id, user_id="user")
+        db.add(progress)
+
+    progress.completed = True
+    progress.updated_at = datetime.utcnow()
+    db.commit()
+
+    return RedirectResponse(url="/admin?status=next_video_unlocked", status_code=303)
 
 @router.get("/course/{course_id}", response_class=HTMLResponse)
 def player(request: Request, course_id: int, video_id: Optional[int] = None, db: Session = Depends(get_db)):

@@ -8,6 +8,11 @@
         <h1 class="text-3xl font-bold text-white mb-6">Playlist Admin</h1>
         <p class="text-slate-400 mb-8">Import a new course by pasting a YouTube Playlist URL below. The system will
             fetch all videos, metadata, and set up the course structure.</p>
+        {% if status_message %}
+        <div class="mb-6 rounded-lg border border-blue-700 bg-blue-900/30 px-4 py-3 text-sm text-blue-200">
+            {{ status_message }}
+        </div>
+        {% endif %}
 
         <form action="/ingest" method="post" class="space-y-6">
             <div>
@@ -35,7 +40,7 @@
                             <th class="px-4 py-3">Title</th>
                             <th class="px-4 py-3">Videos</th>
                             <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3 rounded-tr-lg">Action</th>
+                            <th class="px-4 py-3 rounded-tr-lg">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-700 bg-slate-800">
@@ -54,6 +59,7 @@
                                 {% endif %}
                             </td>
                             <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
                                 <form action="/admin/toggle_course/{{ c.id }}" method="post" class="inline">
                                     <input type="hidden" name="hide" value="{{ 'false' if c.is_hidden else 'true' }}">
                                     <button type="submit"
@@ -61,6 +67,13 @@
                                         {{ 'Show' if c.is_hidden else 'Hide' }}
                                     </button>
                                 </form>
+                                <form action="/admin/unlock_next_video/{{ c.id }}" method="post" class="inline">
+                                    <button type="submit"
+                                        class="px-3 py-1 rounded text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                                        Unlock Next Video
+                                    </button>
+                                </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
