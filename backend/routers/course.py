@@ -11,6 +11,22 @@ from ..services.ai_tutor import generate_questions, evaluate_answer
 from pydantic import BaseModel
 import json
 
+
+def _to_int(value, default=0):
+    """Best-effort int coercion for AI-produced score fields."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_float(value, default=0.0):
+    """Best-effort float coercion for AI-produced numeric fields."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
 router = APIRouter()
 templates = Jinja2Templates(directory="backend/templates")
 
@@ -304,35 +320,60 @@ async def submit_exam(
     from ..services.ai_tutor import evaluate_exam
     result = evaluate_exam(question_dicts, final_text)
     
-    # 4. Save Answers (Individual)
+    # 4. Normalize evaluator output and compute pass/fail deterministically.
+    # Do not trust model-provided booleans for gating progression.
+    answered_question_ids = [
+        _to_int(q_id, default=-1) for q_id in result.get('answered_question_ids', [])
+    ]
+    answered_question_ids = [q_id for q_id in answered_question_ids if q_id > 0]
+
+    raw_scores = result.get('individual_scores', {}) or {}
+    score_by_qid = {}
+    if isinstance(raw_scores, dict):
+        for key, value in raw_scores.items():
+            q_id = _to_int(key, default=-1)
+            if q_id > 0:
+                score_by_qid[q_id] = _to_float(value, default=0.0)
+
+    per_answer_scores = []
+
+    # 5. Save Answers (Individual)
     # We save individual records for history tracking, even if graded in batch
-    for q_id in result.get('answered_question_ids', []):
-        score = result['individual_scores'].get(str(q_id), 0)
-        # Check if actually passed (e.g. > 70)
+    for q_id in answered_question_ids:
+        score = score_by_qid.get(q_id, 0)
+        per_answer_scores.append(score)
         is_pass = score >= 70
-        
+
         new_answer = Answer(
             question_id=q_id,
             user_answer=final_text, # We save full transcript for each
             is_correct=is_pass,
-            rating=score,
+            rating=_to_int(score, default=0),
             feedback=result.get('feedback', "")
         )
         db.add(new_answer)
-    
-    # 5. Update Course Progress if Passed
-    passed_exam = result.get('passed', False)
+
+    # Require at least 2 answered questions and both to clear 70+.
+    passing_answers = sum(1 for score in per_answer_scores if score >= 70)
+    passed_exam = len(answered_question_ids) >= 2 and passing_answers >= 2
+    overall_score = _to_float(
+        result.get('overall_score'),
+        default=(sum(per_answer_scores) / len(per_answer_scores)) if per_answer_scores else 0.0
+    )
+
+    # 6. Update Course Progress if Passed
     if passed_exam:
         prog = db.query(VideoProgress).filter(VideoProgress.video_id == video_id).first()
         if not prog:
             prog = VideoProgress(video_id=video_id, user_id="user")
             db.add(prog)
         prog.completed = True
+        prog.score = _to_int(overall_score, default=0)
         prog.updated_at = datetime.utcnow()
     
     db.commit()
 
-    # 6. Find Next Video ID
+    # 7. Find Next Video ID
     next_video_id = None
     if passed_exam:
         current_vid = db.query(Video).filter(Video.id == video_id).first()
@@ -347,7 +388,7 @@ async def submit_exam(
 
     return {
         "transcription": final_text,
-        "overall_score": result.get('overall_score', 0),
+        "overall_score": overall_score,
         "passed": passed_exam,
         "feedback": result.get('feedback', ""),
         "next_video_id": next_video_id
