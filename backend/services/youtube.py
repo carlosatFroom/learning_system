@@ -11,31 +11,38 @@ def get_playlist_info(playlist_url: str) -> Dict:
         'dump_single_json': True,
         'quiet': True,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(playlist_url, download=False)
-        
-        if 'entries' in result:
-            videos = []
-            for entry in result['entries']:
-                vid_id = entry['id']
-                # Extra safety: if ID contains '&', strip it. 
-                # (yt-dlp usually handles this, but some raw entries might not)
-                if '&' in vid_id:
-                    vid_id = vid_id.split('&')[0]
-                if '?' in vid_id:
-                     vid_id = vid_id.split('?')[0]
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(playlist_url, download=False)
+            
+            if 'entries' in result:
+                videos = []
+                for entry in result['entries']:
+                    if not entry or 'id' not in entry:
+                        continue
 
-                videos.append({
-                    'youtube_id': vid_id,
-                    'title': entry['title'],
-                    'duration': entry.get('duration', 0),
-                    'url': entry.get('url', f"https://www.youtube.com/watch?v={vid_id}")
-                })
-            return {
-                'id': result.get('id'),
-                'title': result.get('title'),
-                'videos': videos
-            }
+                    vid_id = entry['id']
+                    # Extra safety: if ID contains '&', strip it. 
+                    # (yt-dlp usually handles this, but some raw entries might not)
+                    if '&' in vid_id:
+                        vid_id = vid_id.split('&')[0]
+                    if '?' in vid_id:
+                         vid_id = vid_id.split('?')[0]
+
+                    videos.append({
+                        'youtube_id': vid_id,
+                        'title': entry.get('title', 'Untitled Video'),
+                        'duration': entry.get('duration', 0),
+                        'url': entry.get('url', f"https://www.youtube.com/watch?v={vid_id}")
+                    })
+                return {
+                    'id': result.get('id'),
+                    'title': result.get('title'),
+                    'videos': videos
+                }
+            return {}
+    except Exception as e:
+        print(f"Error fetching playlist info for {playlist_url}: {e}")
         return {}
 
 def get_video_transcript(video_id: str) -> List[Dict]:
