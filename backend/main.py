@@ -15,9 +15,27 @@ load_dotenv(env_path)
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# Auto-migrate: add new columns if missing
+from sqlalchemy import inspect as sa_inspect, text
+with engine.connect() as conn:
+    video_cols = [c['name'] for c in sa_inspect(engine).get_columns('videos')]
+    if 'local_filename' not in video_cols:
+        conn.execute(text("ALTER TABLE videos ADD COLUMN local_filename VARCHAR(512)"))
+    course_cols = [c['name'] for c in sa_inspect(engine).get_columns('courses')]
+    if 'source_path' not in course_cols:
+        conn.execute(text("ALTER TABLE courses ADD COLUMN source_path VARCHAR(1024)"))
+    if 'thumbnail' not in course_cols:
+        conn.execute(text("ALTER TABLE courses ADD COLUMN thumbnail VARCHAR(512)"))
+    conn.commit()
+
 app = FastAPI(title="Learning Platform API")
 
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
+# Serve locally downloaded videos
+videos_dir = os.path.join(os.path.dirname(__file__), "videos")
+os.makedirs(videos_dir, exist_ok=True)
+app.mount("/videos", StaticFiles(directory=videos_dir), name="videos")
 
 # Configure CORS
 app.add_middleware(

@@ -1,15 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, UploadFile, File
 from datetime import datetime
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..database import get_db
 from ..models import Course, Video, VideoProgress, Question, Answer, Transcript
-from ..services.youtube import get_playlist_info, get_video_transcript
+from ..services.youtube import get_playlist_info, get_video_transcript, download_video
+from ..services.local_import import scan_local_folder
 from ..services.ai_tutor import generate_questions, evaluate_answer
+from ..database import SessionLocal
 from pydantic import BaseModel
+import threading
+import os
+import re
 import json
+
+# In-memory download job tracker
+# { course_id: { "status": "running"|"done", "total": N, "completed": N, "failed": N, "results": [...] } }
+_download_jobs: dict = {}
 
 
 def _to_int(value, default=0):
@@ -36,6 +45,51 @@ class ProgressUpdate(BaseModel):
     timestamp: float
     completed: bool
 
+def _get_course_thumbnail(course: Course, db: Session) -> Optional[str]:
+    """Get or generate a thumbnail URL for a course."""
+    if course.thumbnail:
+        return course.thumbnail
+
+    sorted_videos = sorted(course.videos, key=lambda v: v.order)
+    if not sorted_videos:
+        return None
+
+    first_video = sorted_videos[0]
+
+    # YouTube course: use YouTube thumbnail
+    if first_video.youtube_id:
+        thumb_url = f"https://img.youtube.com/vi/{first_video.youtube_id}/mqdefault.jpg"
+        course.thumbnail = thumb_url
+        db.commit()
+        return thumb_url
+
+    # Local video: extract a frame with ffmpeg
+    if first_video.local_filename and os.path.isfile(first_video.local_filename):
+        thumbs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "thumbs")
+        os.makedirs(thumbs_dir, exist_ok=True)
+        thumb_file = f"course_{course.id}.jpg"
+        thumb_path = os.path.join(thumbs_dir, thumb_file)
+
+        if not os.path.exists(thumb_path):
+            try:
+                import subprocess
+                subprocess.run(
+                    ['ffmpeg', '-ss', '30', '-i', first_video.local_filename,
+                     '-vframes', '1', '-vf', 'scale=320:-1', '-q:v', '5',
+                     '-y', thumb_path],
+                    capture_output=True, timeout=15,
+                )
+            except Exception:
+                pass
+
+        if os.path.exists(thumb_path):
+            thumb_url = f"/static/thumbs/{thumb_file}"
+            course.thumbnail = thumb_url
+            db.commit()
+            return thumb_url
+
+    return None
+
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
     # Only show non-hidden courses
@@ -46,13 +100,14 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         total_vids = len(c.videos)
         completed = sum(1 for v in c.videos if any(p.completed for p in v.progress))
         progress = int((completed / total_vids * 100)) if total_vids > 0 else 0
-        
+
         course_data.append({
             "id": c.id,
             "title": c.title,
             "description": c.description,
             "video_count": total_vids,
-            "progress_percent": progress
+            "progress_percent": progress,
+            "thumbnail": _get_course_thumbnail(c, db),
         })
 
     return templates.TemplateResponse("dashboard.html", {"request": request, "courses": course_data})
@@ -87,6 +142,251 @@ def ingest_course(playlist_url: str = Form(...), db: Session = Depends(get_db)):
 
     return RedirectResponse(url=f"/", status_code=303)
 
+def _import_single_folder(folder_path: str, db: Session) -> Optional[Course]:
+    """Import a single local folder as a course. Returns the Course or None."""
+    abs_path = os.path.abspath(folder_path)
+    existing = db.query(Course).filter(Course.source_path == abs_path).first()
+    if existing:
+        return existing
+
+    info = scan_local_folder(folder_path)
+    if not info or not info['videos']:
+        return None
+
+    new_course = Course(
+        title=info['title'],
+        description=f"Imported from local folder",
+        playlist_id=f"local:{info['source_path']}",
+        source_path=info['source_path'],
+    )
+    db.add(new_course)
+    db.commit()
+    db.refresh(new_course)
+
+    for v in info['videos']:
+        new_vid = Video(
+            course_id=new_course.id,
+            youtube_id="",
+            title=v['title'],
+            order=v['order'],
+            duration=v['duration'],
+            local_filename=v['path'],
+        )
+        db.add(new_vid)
+    db.commit()
+
+    print(f"[LOCAL IMPORT] Imported {len(info['videos'])} videos from {folder_path}", flush=True)
+    return new_course
+
+@router.post("/ingest_local")
+def ingest_local_course(folder_path: str = Form(...), db: Session = Depends(get_db)):
+    """Import a course from a single local folder."""
+    folder_path = folder_path.strip()
+    if not os.path.isdir(folder_path):
+        return RedirectResponse(url="/admin?status=invalid_folder", status_code=303)
+
+    course = _import_single_folder(folder_path, db)
+    if not course:
+        return RedirectResponse(url="/admin?status=no_videos_found", status_code=303)
+
+    return RedirectResponse(url=f"/", status_code=303)
+
+@router.post("/ingest_local_batch")
+def ingest_local_batch(folder_path: str = Form(...), db: Session = Depends(get_db)):
+    """Import all subfolders of a root directory as separate courses."""
+    folder_path = folder_path.strip()
+    if not os.path.isdir(folder_path):
+        return RedirectResponse(url="/admin?status=invalid_folder", status_code=303)
+
+    imported = 0
+    skipped = 0
+    empty = 0
+
+    # Each immediate subfolder becomes a course
+    for entry in sorted(os.listdir(folder_path)):
+        sub = os.path.join(folder_path, entry)
+        if not os.path.isdir(sub):
+            continue
+
+        abs_sub = os.path.abspath(sub)
+        if db.query(Course).filter(Course.source_path == abs_sub).first():
+            skipped += 1
+            continue
+
+        course = _import_single_folder(sub, db)
+        if course:
+            imported += 1
+        else:
+            empty += 1
+
+    print(f"[BATCH IMPORT] {folder_path}: {imported} imported, {skipped} skipped, {empty} empty", flush=True)
+    return RedirectResponse(url=f"/admin?status=batch_done&imported={imported}&skipped={skipped}", status_code=303)
+
+@router.get("/stream/{video_id}")
+def stream_video(video_id: int, request: Request, db: Session = Depends(get_db)):
+    """Serve a local video file with range request support for seeking."""
+    from starlette.responses import StreamingResponse
+
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video or not video.local_filename:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    file_path = video.local_filename
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Video file not found on disk")
+
+    file_size = os.path.getsize(file_path)
+    ext = os.path.splitext(file_path)[1].lower()
+    media_types = {'.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm', '.mov': 'video/quicktime'}
+    media_type = media_types.get(ext, 'video/mp4')
+
+    range_header = request.headers.get("range")
+    if range_header:
+        # Parse range: "bytes=start-end"
+        range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+        if range_match:
+            start = int(range_match.group(1))
+            end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+            end = min(end, file_size - 1)
+            content_length = end - start + 1
+
+            def iter_file():
+                with open(file_path, 'rb') as f:
+                    f.seek(start)
+                    remaining = content_length
+                    while remaining > 0:
+                        chunk = f.read(min(8192, remaining))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
+
+            return StreamingResponse(
+                iter_file(),
+                status_code=206,
+                media_type=media_type,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(content_length),
+                },
+            )
+
+    return FileResponse(file_path, media_type=media_type)
+
+@router.post("/api/download_video/{video_id}")
+def download_video_endpoint(video_id: int, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    if video.local_filename:
+        return {"status": "already_downloaded", "filename": video.local_filename}
+
+    course = video.course
+    filename = download_video(
+        video.youtube_id,
+        course_title=course.title if course else "",
+        video_title=video.title,
+        video_order=video.order,
+    )
+    if not filename:
+        raise HTTPException(status_code=500, detail="Failed to download video")
+
+    video.local_filename = filename
+    db.commit()
+    return {"status": "ok", "filename": filename}
+
+@router.post("/api/download_course/{course_id}")
+def download_course_start(course_id: int, db: Session = Depends(get_db)):
+    """Kick off a background download job for all videos in a course."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Don't start a second job if one is already running
+    existing = _download_jobs.get(course_id)
+    if existing and existing["status"] == "running":
+        return {"status": "already_running", "job": existing}
+
+    to_download = []
+    already = 0
+    course_title = course.title
+    for video in sorted(course.videos, key=lambda v: v.order):
+        if video.local_filename:
+            already += 1
+        else:
+            to_download.append({
+                "video_id": video.id,
+                "youtube_id": video.youtube_id,
+                "video_title": video.title,
+                "video_order": video.order,
+            })
+
+    if not to_download:
+        return {"status": "all_downloaded", "total": already}
+
+    job = {
+        "status": "running",
+        "total": len(to_download) + already,
+        "already": already,
+        "completed": 0,
+        "failed": 0,
+        "results": [],
+        "current": [],
+    }
+    _download_jobs[course_id] = job
+
+    def _run_downloads():
+        total = len(to_download)
+        for idx, item in enumerate(to_download):
+            vid_id = item["video_id"]
+            yt_id = item["youtube_id"]
+            job["current"] = [yt_id]
+            print(f"[QUEUE] ({idx + 1}/{total}) Starting: {item['video_title']}", flush=True)
+            try:
+                filename = download_video(
+                    yt_id,
+                    course_title=course_title,
+                    video_title=item["video_title"],
+                    video_order=item["video_order"],
+                )
+                if filename:
+                    s = SessionLocal()
+                    try:
+                        v = s.query(Video).filter(Video.id == vid_id).first()
+                        if v:
+                            v.local_filename = filename
+                            s.commit()
+                    finally:
+                        s.close()
+                    job["completed"] += 1
+                    job["results"].append({"video_id": vid_id, "status": "ok"})
+                    print(f"[QUEUE] ({idx + 1}/{total}) Done: {item['video_title']}", flush=True)
+                else:
+                    job["failed"] += 1
+                    job["results"].append({"video_id": vid_id, "status": "failed"})
+                    print(f"[QUEUE] ({idx + 1}/{total}) Failed: {item['video_title']}", flush=True)
+            except Exception as e:
+                job["failed"] += 1
+                job["results"].append({"video_id": vid_id, "status": "failed", "error": str(e)})
+                print(f"[QUEUE] ({idx + 1}/{total}) Error: {item['video_title']}: {e}", flush=True)
+        job["current"] = []
+        job["status"] = "done"
+        print(f"[QUEUE] All done. {job['completed']} ok, {job['failed']} failed.", flush=True)
+
+    thread = threading.Thread(target=_run_downloads, daemon=True)
+    thread.start()
+    return {"status": "started", "job": job}
+
+@router.get("/api/download_course/{course_id}/status")
+def download_course_status(course_id: int):
+    """Poll download progress for a course."""
+    job = _download_jobs.get(course_id)
+    if not job:
+        return {"status": "no_job"}
+    return {"status": job["status"], "job": job}
+
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, db: Session = Depends(get_db)):
     courses = db.query(Course).all()
@@ -95,8 +395,15 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
         "next_video_unlocked": "Unlocked the next video in sequence.",
         "all_videos_completed": "All videos are already unlocked and completed.",
         "no_videos": "This course has no videos to unlock.",
-        "course_not_found": "Course not found."
+        "course_not_found": "Course not found.",
+        "invalid_folder": "Folder path does not exist or is not a directory.",
+        "no_videos_found": "No video files found in that folder.",
     }
+    # Dynamic status for batch import
+    if status_code == "batch_done":
+        imp = request.query_params.get("imported", "0")
+        skp = request.query_params.get("skipped", "0")
+        status_messages["batch_done"] = f"Batch import complete: {imp} courses imported, {skp} already existed."
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "courses": courses,
@@ -187,7 +494,8 @@ def player(request: Request, course_id: int, video_id: Optional[int] = None, db:
         "title": target_video.title,
         "youtube_id": target_video.youtube_id,
         "duration": target_video.duration,
-        "last_watched_timestamp": prog.last_watched_timestamp if prog else 0
+        "last_watched_timestamp": prog.last_watched_timestamp if prog else 0,
+        "local_filename": target_video.local_filename
     }
 
     # Sidebar

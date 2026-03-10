@@ -4,3 +4,6 @@ __pycache__
 venv/
 .DS_Store
 *.log
+backend/videos/
+backend/videos/
+.env

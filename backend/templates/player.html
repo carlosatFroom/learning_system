@@ -3,62 +3,72 @@
 {% block title %}{{ video.title }} - Learning System{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+<!-- Desktop: side-by-side grid. Mobile: stacked vertical -->
+<div class="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 lg:h-[calc(100vh-140px)]">
 
     <!-- Main Player Area -->
-    <div class="lg:col-span-2 flex flex-col gap-4">
+    <div class="lg:col-span-2 flex flex-col gap-3 lg:gap-4">
         <div
-            class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-700 group">
+            class="relative w-full aspect-video bg-black rounded-lg lg:rounded-xl overflow-hidden shadow-2xl border border-slate-700">
+            {% if video.local_filename %}
+            <video id="local-player" class="w-full h-full" controls playsinline>
+                {% if video.local_filename.startswith('/') %}
+                <source src="/stream/{{ video.id }}">
+                {% else %}
+                <source src="/videos/{{ video.local_filename }}" type="video/mp4">
+                {% endif %}
+            </video>
+            {% else %}
             <div id="player" class="w-full h-full"></div>
+            {% endif %}
 
             <!-- Exam Overlay -->
             <div id="quiz-overlay"
-                class="hidden absolute inset-0 bg-slate-900/95 z-10 flex flex-col p-8 backdrop-blur-sm overflow-y-auto">
-                <div class="max-w-3xl mx-auto w-full flex-1 flex flex-col pt-10">
-                    <h2 class="text-3xl font-bold text-white mb-2">Knowledge Check</h2>
-                    <p class="text-slate-400 mb-6">Choose any <strong>2 questions</strong> to answer. Start your answer
+                class="hidden absolute inset-0 bg-slate-900/95 z-10 flex flex-col p-4 md:p-8 backdrop-blur-sm overflow-y-auto scroll-touch">
+                <div class="max-w-3xl mx-auto w-full flex-1 flex flex-col pt-2 md:pt-10">
+                    <h2 class="text-xl md:text-3xl font-bold text-white mb-1 md:mb-2">Knowledge Check</h2>
+                    <p class="text-xs md:text-base text-slate-400 mb-4 md:mb-6">Choose any <strong>2 questions</strong> to answer. Start your answer
                         with the question number (e.g., "1. My answer is...").</p>
 
-                    <div id="quiz-content" class="flex flex-col gap-6">
+                    <div id="quiz-content" class="flex flex-col gap-4 md:gap-6">
                         <!-- Questions List -->
                         <div id="questions-list"
-                            class="space-y-4 bg-slate-800/50 p-6 rounded-xl border border-slate-700">
-                            <!-- Injected via JS -->
+                            class="space-y-3 md:space-y-4 bg-slate-800/50 p-4 md:p-6 rounded-xl border border-slate-700 text-sm md:text-base">
                             <div class="animate-pulse text-slate-500">Loading questions...</div>
                         </div>
 
                         <!-- Answer Area -->
-                        <div class="space-y-4">
+                        <div class="space-y-3 md:space-y-4">
                             <textarea id="answer-text"
-                                class="w-full h-40 bg-slate-800 text-white p-4 rounded-lg border border-slate-600 focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                class="w-full h-28 md:h-40 bg-slate-800 text-white p-3 md:p-4 rounded-lg border border-slate-600 focus:ring-2 focus:ring-blue-500 font-mono text-xs md:text-sm"
                                 placeholder="1. [Your Answer]&#10;2. [Your Answer]"></textarea>
 
-                            <div class="flex gap-4">
+                            <div class="flex gap-2 md:gap-4">
                                 <button id="record-btn"
-                                    class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors border border-slate-600">
-                                    <i data-lucide="mic" class="w-5 h-5"></i>
-                                    <span id="record-status">Record Audio Answer</span>
+                                    class="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white py-2.5 md:py-3 rounded-lg flex items-center justify-center gap-2 transition-colors border border-slate-600 text-sm">
+                                    <i data-lucide="mic" class="w-4 h-4 md:w-5 md:h-5"></i>
+                                    <span id="record-status" class="hidden fold:inline">Record Audio</span>
+                                    <span class="fold:hidden">Record</span>
                                 </button>
                                 <button id="submit-btn"
-                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-900/20">
+                                    class="flex-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-2.5 md:py-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-900/20 text-sm md:text-base">
                                     Submit Exam
                                 </button>
                             </div>
 
                             <!-- Feedback Section -->
                             <div id="feedback-area"
-                                class="hidden p-6 rounded-lg bg-slate-800 border border-slate-700 text-left">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h4 class="text-xl font-bold text-white">Assessment Result</h4>
-                                    <div class="text-2xl font-bold" id="score-display">--/100</div>
+                                class="hidden p-4 md:p-6 rounded-lg bg-slate-800 border border-slate-700 text-left">
+                                <div class="flex items-center justify-between mb-3 md:mb-4">
+                                    <h4 class="text-lg md:text-xl font-bold text-white">Result</h4>
+                                    <div class="text-xl md:text-2xl font-bold" id="score-display">--/100</div>
                                 </div>
 
-                                <div class="prose prose-invert max-w-none text-slate-300 text-sm mb-6"
+                                <div class="prose prose-invert max-w-none text-slate-300 text-xs md:text-sm mb-4 md:mb-6"
                                     id="feedback-text"></div>
 
                                 <button id="next-action-btn"
-                                    class="w-full py-3 rounded-lg font-bold transition-colors hidden">
-                                    <!-- Dynamic Text -->
+                                    class="w-full py-2.5 md:py-3 rounded-lg font-bold transition-colors hidden text-sm md:text-base">
                                 </button>
                             </div>
                         </div>
@@ -67,49 +77,57 @@
             </div>
         </div>
 
-        <div>
-            <h1 class="text-2xl font-bold text-white">{{ video.title }}</h1>
-            <p class="text-slate-400 mt-1">Course: <a href="/course/{{ course.id }}"
+        <!-- Video title: smaller on mobile -->
+        <div class="px-1">
+            <h1 class="text-lg md:text-2xl font-bold text-white leading-tight">{{ video.title }}</h1>
+            <p class="text-slate-400 mt-1 text-xs md:text-base">Course: <a href="/course/{{ course.id }}"
                     class="text-blue-400 hover:underline">{{ course.title }}</a></p>
         </div>
     </div>
 
-    <!-- Sidebar Playlist -->
-    <div class="bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden">
-        <div class="p-4 border-b border-slate-700 bg-slate-800 z-10">
-            <h3 class="font-semibold text-slate-200">Course Content</h3>
-            <div class="w-full bg-slate-700 h-1 mt-3 rounded-full overflow-hidden">
-                <div class="bg-blue-500 h-full" style="width: {{ course.progress_percent }}%"></div>
+    <!-- Sidebar Playlist: collapsible on mobile -->
+    <div class="bg-slate-800 rounded-lg lg:rounded-xl border border-slate-700 flex flex-col overflow-hidden">
+        <!-- Toggle header on mobile -->
+        <button id="playlist-toggle"
+            class="w-full p-3 md:p-4 border-b border-slate-700 bg-slate-800 z-10 flex items-center justify-between lg:cursor-default"
+            onclick="togglePlaylist()">
+            <div class="flex-1">
+                <h3 class="font-semibold text-slate-200 text-sm md:text-base text-left">Course Content</h3>
+                <div class="w-full bg-slate-700 h-1 mt-2 md:mt-3 rounded-full overflow-hidden">
+                    <div class="bg-blue-500 h-full" style="width: {{ course.progress_percent }}%"></div>
+                </div>
             </div>
-        </div>
+            <i data-lucide="chevron-down" id="playlist-chevron" class="w-5 h-5 text-slate-400 ml-3 transition-transform lg:hidden"></i>
+        </button>
 
-        <div class="overflow-y-auto flex-1 p-2 space-y-1">
+        <!-- Playlist items: hidden on mobile by default, always visible on desktop -->
+        <div id="playlist-items" class="hidden lg:block overflow-y-auto flex-1 p-2 space-y-1 scroll-touch max-h-[40vh] lg:max-h-none">
             {% for v in course.videos %}
             {% if v.locked and not v.completed %}
-            <div class="flex items-center gap-3 p-3 rounded-lg opacity-50 cursor-not-allowed bg-slate-800/50">
+            <div class="flex items-center gap-3 p-2.5 md:p-3 rounded-lg opacity-50 cursor-not-allowed bg-slate-800/50">
                 <div
-                    class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700 text-slate-500">
-                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    class="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-slate-700 text-slate-500">
+                    <i data-lucide="lock" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                 </div>
                 <div class="min-w-0">
-                    <p class="text-sm font-medium text-slate-500">{{ v.title }}</p>
+                    <p class="text-xs md:text-sm font-medium text-slate-500 truncate">{{ v.title }}</p>
                     <span class="text-xs text-slate-600">Locked</span>
                 </div>
             </div>
             {% else %}
             <a href="/course/{{ course.id }}?video_id={{ v.id }}"
-                class="flex items-center gap-3 p-3 rounded-lg transition-colors {% if v.id == video.id %}bg-blue-600/20 border border-blue-500/50{% else %}hover:bg-slate-700{% endif %}">
+                class="flex items-center gap-3 p-2.5 md:p-3 rounded-lg transition-colors {% if v.id == video.id %}bg-blue-600/20 border border-blue-500/50{% else %}hover:bg-slate-700 active:bg-slate-700{% endif %}">
                 <div
-                    class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center {% if v.completed %}bg-green-500/20 text-green-400{% elif v.id == video.id %}bg-blue-500 text-white{% else %}bg-slate-700 text-slate-400{% endif %}">
+                    class="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center {% if v.completed %}bg-green-500/20 text-green-400{% elif v.id == video.id %}bg-blue-500 text-white{% else %}bg-slate-700 text-slate-400{% endif %}">
                     {% if v.completed %}
-                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <i data-lucide="check" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                     {% else %}
-                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <i data-lucide="play" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                     {% endif %}
                 </div>
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                     <p
-                        class="text-sm font-medium truncate {% if v.id == video.id %}text-blue-200{% else %}text-slate-300{% endif %}">
+                        class="text-xs md:text-sm font-medium truncate {% if v.id == video.id %}text-blue-200{% else %}text-slate-300{% endif %}">
                         {{ v.title }}
                     </p>
                     <span class="text-xs text-slate-500">{{ (v.duration / 60)|round|int }} mins</span>
@@ -122,21 +140,50 @@
 </div>
 
 <script>
-    // YouTube Setup
-    var tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    var firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    // Playlist toggle for mobile
+    function togglePlaylist() {
+        if (window.innerWidth >= 1024) return; // lg breakpoint
+        var items = document.getElementById('playlist-items');
+        var chevron = document.getElementById('playlist-chevron');
+        items.classList.toggle('hidden');
+        chevron.style.transform = items.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    }
 
-    var player;
     var currentVideoId = "{{ video.id }}";
     var courseId = "{{ course.id }}";
     var startTime = {{ video.last_watched_timestamp or 0 }};
+    var isLocalVideo = {{ 'true' if video.local_filename else 'false' }};
 
     // Exam State
     let audioBlob = null;
     let mediaRecorder = null;
     let audioChunks = [];
+
+    // Unified player interface
+    var player;
+
+    if (isLocalVideo) {
+        // Local HTML5 video player
+        var localPlayer = document.getElementById('local-player');
+        localPlayer.currentTime = startTime;
+
+        player = {
+            getCurrentTime: function() { return localPlayer.currentTime; }
+        };
+
+        localPlayer.addEventListener('ended', function() {
+            saveProgress(false);
+            startExam();
+        });
+
+        setInterval(saveProgress, 5000);
+    } else {
+        // YouTube Setup
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
 
     function onYouTubeIframeAPIReady() {
         var playerConfig = {
@@ -148,14 +195,6 @@
             }
         };
 
-        // Add playlist context if available
-        // Playlist context removed to prevent embed errors
-        // var playlistId = "{{ course.playlist_id }}";
-        // if (playlistId && playlistId !== "None" && playlistId !== "") {
-        //    playerConfig.playerVars['listType'] = 'playlist';
-        //    playerConfig.playerVars['list'] = playlistId;
-        // }
-
         player = new YT.Player('player', playerConfig);
     }
 
@@ -165,7 +204,7 @@
 
     function onPlayerStateChange(event) {
         if (event.data == YT.PlayerState.ENDED) {
-            saveProgress(false); // Don't mark complete just by watching. Must pass exam.
+            saveProgress(false);
             startExam();
         }
     }
@@ -200,10 +239,10 @@
 
             data.questions.forEach((q, idx) => {
                 const item = document.createElement('div');
-                item.className = "flex gap-3 text-slate-200";
+                item.className = "flex gap-2 md:gap-3 text-slate-200";
                 item.innerHTML = `
                     <span class="font-bold text-blue-400">${idx + 1}.</span>
-                    <p>${q.text}</p>
+                    <p class="text-xs md:text-base">${q.text}</p>
                 `;
                 list.appendChild(item);
             });
@@ -228,7 +267,7 @@
                 };
 
                 mediaRecorder.start();
-                document.getElementById('record-status').innerText = "Stop Recording";
+                document.getElementById('record-status').innerText = "Stop";
                 document.getElementById('record-btn').classList.add('bg-red-600', 'border-red-500');
             } catch (e) {
                 alert("Microphone access denied");
@@ -249,7 +288,7 @@
         if (audioBlob) formData.append('audio_file', audioBlob, 'answer.m4a');
 
         const btn = document.getElementById('submit-btn');
-        btn.innerText = "Grading Exam...";
+        btn.innerText = "Grading...";
         btn.disabled = true;
 
         try {
@@ -265,7 +304,7 @@
 
             const scoreEl = document.getElementById('score-display');
             scoreEl.innerText = data.overall_score + "/100";
-            scoreEl.className = data.passed ? "text-2xl font-bold text-green-400" : "text-2xl font-bold text-red-400";
+            scoreEl.className = data.passed ? "text-xl md:text-2xl font-bold text-green-400" : "text-xl md:text-2xl font-bold text-red-400";
 
             btn.classList.add('hidden'); // Hide submit
 
@@ -274,11 +313,11 @@
 
             if (data.passed) {
                 if (data.next_video_id) {
-                    nextBtn.innerText = "Go to Next Video →";
+                    nextBtn.innerText = "Next Video \u2192";
                     nextBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
                     nextBtn.onclick = () => window.location.href = `?video_id=${data.next_video_id}`;
                 } else {
-                    nextBtn.innerText = "Course Completed! Back to Dashboard";
+                    nextBtn.innerText = "Course Complete! Dashboard \u2192";
                     nextBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
                     nextBtn.onclick = () => window.location.href = `/`;
                 }
@@ -286,7 +325,6 @@
                 nextBtn.innerText = "Retake Exam";
                 nextBtn.classList.add('bg-slate-700', 'hover:bg-slate-600', 'text-white');
                 nextBtn.onclick = () => {
-                    // Reset UI for retry
                     document.getElementById('feedback-area').classList.add('hidden');
                     btn.classList.remove('hidden');
                     btn.innerText = "Submit Exam";

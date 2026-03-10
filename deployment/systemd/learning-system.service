@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=carlos
+Group=carlos
 WorkingDirectory=/home/carlos/code/learning_system
-Environment="PATH=/home/carlos/code/learning_system/venv/bin"
+Environment="PATH=/home/carlos/code/learning_system/venv/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=/home/carlos/code/learning_system/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10

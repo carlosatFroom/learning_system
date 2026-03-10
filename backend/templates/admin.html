@@ -3,36 +3,69 @@
 {% block title %}Admin - Import Course{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto mt-10">
-    <div class="bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-xl">
-        <h1 class="text-3xl font-bold text-white mb-6">Playlist Admin</h1>
-        <p class="text-slate-400 mb-8">Import a new course by pasting a YouTube Playlist URL below. The system will
-            fetch all videos, metadata, and set up the course structure.</p>
+<div class="max-w-2xl mx-auto mt-4 md:mt-10">
+    <div class="bg-slate-800 rounded-xl p-4 md:p-8 border border-slate-700 shadow-xl">
+        <h1 class="text-2xl md:text-3xl font-bold text-white mb-4 md:mb-6">Playlist Admin</h1>
+        <p class="text-sm md:text-base text-slate-400 mb-6 md:mb-8">Import a new course from YouTube or a local folder.</p>
+
         {% if status_message %}
         <div class="mb-6 rounded-lg border border-blue-700 bg-blue-900/30 px-4 py-3 text-sm text-blue-200">
             {{ status_message }}
         </div>
         {% endif %}
 
-        <form action="/ingest" method="post" class="space-y-6">
-            <div>
-                <label for="playlist_url" class="block text-sm font-medium text-slate-300 mb-2">YouTube Playlist
-                    URL</label>
-                <input type="url" name="playlist_url" id="playlist_url" required
-                    class="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-500"
-                    placeholder="https://www.youtube.com/playlist?list=PL...">
+        <!-- Import forms: stack on mobile, side by side on tablet+ -->
+        <div class="grid grid-cols-1 fold-open:grid-cols-2 gap-4 md:gap-6">
+            <form action="/ingest" method="post" class="space-y-4 bg-slate-900/50 p-4 md:p-5 rounded-lg border border-slate-700">
+                <h3 class="text-base md:text-lg font-semibold text-white">YouTube Playlist</h3>
+                <div>
+                    <input type="url" name="playlist_url" id="playlist_url" required
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-500 text-sm"
+                        placeholder="https://www.youtube.com/playlist?list=PL...">
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm md:text-base">
+                    <i data-lucide="download-cloud" class="w-5 h-5"></i>
+                    Import from YouTube
+                </button>
+            </form>
+
+            <div class="space-y-4 bg-slate-900/50 p-4 md:p-5 rounded-lg border border-slate-700">
+                <h3 class="text-base md:text-lg font-semibold text-white">Local Folder</h3>
+                <div>
+                    <input type="text" name="folder_path" id="folder_path" required form="local-single"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-500 text-sm"
+                        placeholder="/media/carlos/Movies/masterclass/...">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <form action="/ingest_local" method="post" id="local-single">
+                        <input type="hidden" name="folder_path" id="single_path">
+                        <button type="submit"
+                            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs md:text-sm">
+                            <i data-lucide="folder-open" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            Import
+                        </button>
+                    </form>
+                    <form action="/ingest_local_batch" method="post" id="local-batch">
+                        <input type="hidden" name="folder_path" id="batch_path">
+                        <button type="submit"
+                            class="w-full bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs md:text-sm">
+                            <i data-lucide="folders" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            Batch All
+                        </button>
+                    </form>
+                </div>
+                <p class="text-xs text-slate-500"><strong>Import</strong>: one course. <strong>Batch All</strong>: each subfolder = course.</p>
             </div>
+        </div>
 
-            <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                <i data-lucide="download-cloud" class="w-5 h-5"></i>
-                Import Course
-            </button>
-        </form>
+        <!-- Manage Courses -->
+        <div class="mt-8 md:mt-12">
+            <h2 class="text-lg md:text-xl font-bold text-white mb-4">Manage Courses</h2>
 
-        <div class="mt-12">
-            <h2 class="text-xl font-bold text-white mb-4">Manage Existing Courses</h2>
-            <div class="overflow-x-auto">
+            <!-- Desktop: table. Mobile: card list -->
+            <!-- Table (hidden on small screens) -->
+            <div class="hidden fold-open:block overflow-x-auto">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-700 uppercase font-medium text-slate-400">
                         <tr>
@@ -51,28 +84,30 @@
                             <td class="px-4 py-3">{{ c.videos|length }}</td>
                             <td class="px-4 py-3">
                                 {% if c.is_hidden %}
-                                <span
-                                    class="px-2 py-1 rounded bg-red-900/50 text-red-200 text-xs border border-red-800">Hidden</span>
+                                <span class="px-2 py-1 rounded bg-red-900/50 text-red-200 text-xs border border-red-800">Hidden</span>
                                 {% else %}
-                                <span
-                                    class="px-2 py-1 rounded bg-green-900/50 text-green-200 text-xs border border-green-800">Visible</span>
+                                <span class="px-2 py-1 rounded bg-green-900/50 text-green-200 text-xs border border-green-800">Visible</span>
                                 {% endif %}
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex flex-wrap gap-2">
-                                <form action="/admin/toggle_course/{{ c.id }}" method="post" class="inline">
-                                    <input type="hidden" name="hide" value="{{ 'false' if c.is_hidden else 'true' }}">
-                                    <button type="submit"
-                                        class="px-3 py-1 rounded text-xs font-bold transition-colors {% if c.is_hidden %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-red-600 hover:bg-red-700 text-white{% endif %}">
-                                        {{ 'Show' if c.is_hidden else 'Hide' }}
+                                    <form action="/admin/toggle_course/{{ c.id }}" method="post" class="inline">
+                                        <input type="hidden" name="hide" value="{{ 'false' if c.is_hidden else 'true' }}">
+                                        <button type="submit"
+                                            class="px-3 py-1 rounded text-xs font-bold transition-colors {% if c.is_hidden %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-red-600 hover:bg-red-700 text-white{% endif %}">
+                                            {{ 'Show' if c.is_hidden else 'Hide' }}
+                                        </button>
+                                    </form>
+                                    <form action="/admin/unlock_next_video/{{ c.id }}" method="post" class="inline">
+                                        <button type="submit"
+                                            class="px-3 py-1 rounded text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                                            Unlock Next
+                                        </button>
+                                    </form>
+                                    <button onclick="downloadCourse({{ c.id }}, this)"
+                                        class="px-3 py-1 rounded text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+                                        Download
                                     </button>
-                                </form>
-                                <form action="/admin/unlock_next_video/{{ c.id }}" method="post" class="inline">
-                                    <button type="submit"
-                                        class="px-3 py-1 rounded text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                                        Unlock Next Video
-                                    </button>
-                                </form>
                                 </div>
                             </td>
                         </tr>
@@ -85,11 +120,52 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Card list (shown only on small screens) -->
+            <div class="fold-open:hidden space-y-3">
+                {% for c in courses %}
+                <div class="bg-slate-900/50 rounded-lg border border-slate-700 p-4">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-semibold text-white truncate">{{ c.title }}</h4>
+                            <p class="text-xs text-slate-500 mt-0.5">{{ c.videos|length }} videos</p>
+                        </div>
+                        {% if c.is_hidden %}
+                        <span class="flex-shrink-0 px-2 py-0.5 rounded bg-red-900/50 text-red-200 text-xs border border-red-800">Hidden</span>
+                        {% else %}
+                        <span class="flex-shrink-0 px-2 py-0.5 rounded bg-green-900/50 text-green-200 text-xs border border-green-800">Visible</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <form action="/admin/toggle_course/{{ c.id }}" method="post">
+                            <input type="hidden" name="hide" value="{{ 'false' if c.is_hidden else 'true' }}">
+                            <button type="submit"
+                                class="px-3 py-1.5 rounded text-xs font-bold transition-colors {% if c.is_hidden %}bg-green-600 active:bg-green-700 text-white{% else %}bg-red-600 active:bg-red-700 text-white{% endif %}">
+                                {{ 'Show' if c.is_hidden else 'Hide' }}
+                            </button>
+                        </form>
+                        <form action="/admin/unlock_next_video/{{ c.id }}" method="post">
+                            <button type="submit"
+                                class="px-3 py-1.5 rounded text-xs font-bold bg-blue-600 active:bg-blue-700 text-white transition-colors">
+                                Unlock Next
+                            </button>
+                        </form>
+                        <button onclick="downloadCourse({{ c.id }}, this)"
+                            class="px-3 py-1.5 rounded text-xs font-bold bg-purple-600 active:bg-purple-700 text-white transition-colors">
+                            Download
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not courses %}
+                <div class="text-center py-8 text-slate-500 italic text-sm">No courses found.</div>
+                {% endif %}
+            </div>
         </div>
 
-        <div class="mt-8 pt-8 border-t border-slate-700">
-            <h3 class="text-lg font-semibold text-white mb-4">Tips</h3>
-            <ul class="list-disc list-inside text-slate-400 space-y-2 text-sm">
+        <div class="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-700">
+            <h3 class="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">Tips</h3>
+            <ul class="list-disc list-inside text-slate-400 space-y-2 text-xs md:text-sm">
                 <li>Make sure the playlist is <strong>Public</strong> or <strong>Unlisted</strong>.</li>
                 <li>The import process fetches video titles, durations, and IDs.</li>
                 <li>Transcripts are fetched on-demand when you first open the video.</li>
@@ -97,4 +173,63 @@
         </div>
     </div>
 </div>
+
+<script>
+// Sync the visible folder_path input to the hidden inputs in both forms
+const folderInput = document.getElementById('folder_path');
+const singlePath = document.getElementById('single_path');
+const batchPath = document.getElementById('batch_path');
+folderInput.addEventListener('input', () => {
+    singlePath.value = folderInput.value;
+    batchPath.value = folderInput.value;
+});
+document.getElementById('local-single').addEventListener('submit', () => { singlePath.value = folderInput.value; });
+document.getElementById('local-batch').addEventListener('submit', () => { batchPath.value = folderInput.value; });
+
+async function downloadCourse(courseId, btn) {
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+
+    try {
+        const res = await fetch(`/api/download_course/${courseId}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.status === 'all_downloaded') {
+            btn.innerText = "All done";
+            btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            btn.classList.add('bg-green-600');
+            return;
+        }
+
+        pollDownload(courseId, btn);
+    } catch (e) {
+        btn.innerText = "Error";
+        console.error(e);
+    }
+}
+
+async function pollDownload(courseId, btn) {
+    const poll = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/download_course/${courseId}/status`);
+            const data = await res.json();
+            const job = data.job;
+            if (!job) { clearInterval(poll); return; }
+
+            const done = job.completed + job.failed + job.already;
+            const active = job.current.length;
+            btn.innerText = `${done}/${job.total}` + (job.failed > 0 ? ` (${job.failed}!)` : '');
+
+            if (data.status === 'done') {
+                clearInterval(poll);
+                btn.classList.remove('opacity-50', 'bg-purple-600', 'hover:bg-purple-700');
+                btn.classList.add(job.failed === 0 ? 'bg-green-600' : 'bg-yellow-600');
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, 2000);
+}
+</script>
 {% endblock %}

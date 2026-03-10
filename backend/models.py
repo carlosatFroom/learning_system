@@ -10,6 +10,8 @@ class Course(Base):
     title = Column(String(255), index=True)
     description = Column(Text, nullable=True)
     playlist_id = Column(String(255), unique=True, index=True)
+    source_path = Column(String(1024), nullable=True)  # Local folder path for non-YouTube courses
+    thumbnail = Column(String(512), nullable=True)  # Path or URL to course thumbnail
     is_hidden = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -24,6 +26,7 @@ class Video(Base):
     title = Column(String(255))
     order = Column(Integer)
     duration = Column(Integer) # In seconds
+    local_filename = Column(String(512), nullable=True)  # Filename of locally downloaded video
 
     course = relationship("Course", back_populates="videos")
     transcripts = relationship("Transcript", back_populates="video")
