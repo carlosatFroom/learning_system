@@ -10,7 +10,7 @@ load_dotenv()
 # Initialize Groq client
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-MODEL_TEXT = "llama-3.1-8b-instant"
+MODEL_TEXT = "openai/gpt-oss-20b"
 MODEL_AUDIO = "whisper-large-v3-turbo"
 
 def transcribe_audio(audio_bytes: bytes) -> str:
